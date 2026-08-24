@@ -1,0 +1,40 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle and Build directories
+.gradle/
+build/
+app/build/
+*/build/
+
+# Android Studio and IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.externalNativeBuild
+.cxx/
+captures/
+.kotlin/
+
+# Local configuration and secrets
+local.properties
+keystore.properties
+*.jks
+*.keystore
+*.key
+google-services.json
+secrets.xml
+
+# OS generated files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Log files
+*.log
