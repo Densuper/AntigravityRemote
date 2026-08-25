@@ -1,5 +1,26 @@
 # Release Notes - Antigravity Remote
 
+## v1.1.0 - AGENT HUD, Biometric Lock & Voice Bridge Release (2026-08-25)
+
+We are excited to release **Antigravity Remote v1.1.0** with major UX improvements, layout polish, biometric privacy, and a plug-and-play voice assistant bridge!
+
+### 🌟 What's New in v1.1.0:
+
+- **⚡ Dedicated Non-Overlapping AGENT HUD**:
+  - Moved overlay pill into a dedicated `38dp` native top status bar.
+  - Zero web UI obstruction—back buttons, navigation tabs, and agent controls remain 100% accessible.
+- **🔒 Dedicated Biometric Lock Screen**:
+  - Lock your active workspace behind AndroidX `BiometricPrompt` (Fingerprint / PIN) with a single tap.
+- **🎙️ Plug-and-Play Voice Assistant Bridge**:
+  - Added native on-device speech engine (`com.example.antigravityremote.SPEAK`).
+  - Developers can connect their own AI agents (Claude, GPT, custom personas) to speak summaries autonomously without exposing API keys or private scripts.
+- **🧼 100% Genuine UI**:
+  - Removed artificial quota dials and static estimates in favor of a clean, minimalist control console.
+- **📱 Anti-Refresh Lifecycle**:
+  - Implemented `singleInstance` launch mode and warm memory retention across app minimizes.
+
+---
+
 ## v1.0.0 - Initial Open Source Release (2026-08-23)
 
 We are thrilled to announce the initial open-source release of **Antigravity Remote** for Android!
