@@ -38,3 +38,6 @@ Thumbs.db
 
 # Log files
 *.log
+
+# Experimental Wear OS Module (Kept Local Only)
+wear/
