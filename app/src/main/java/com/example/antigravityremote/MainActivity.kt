@@ -76,6 +76,13 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         createNotificationChannels()
 
+        // Google Android 13+ Runtime Notification Permission Request
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
         setContent {
             AntigravityRemoteTheme {
                 Surface(
@@ -118,7 +125,16 @@ class MainActivity : FragmentActivity() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Chrome-style Heads-Up Floating Banner Notification
+        // Public version displayed when device is locked (guarantees text is NEVER redacted)
+        val publicNotification = NotificationCompat.Builder(this, CHANNEL_PROJECT)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
+        // Chrome-style Heads-Up Floating Banner & Full Lockscreen Notification
         val builder = NotificationCompat.Builder(this, CHANNEL_PROJECT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
@@ -127,12 +143,33 @@ class MainActivity : FragmentActivity() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setPublicVersion(publicNotification)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setContentIntent(openPendingIntent)
             .setFullScreenIntent(openPendingIntent, false)
             .setAutoCancel(true)
+            .setShowWhen(true)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify((System.currentTimeMillis() % 10000).toInt(), builder.build())
+        val notificationId = (System.currentTimeMillis() % 10000).toInt()
+        notificationManager.notify(notificationId, builder.build())
+
+        // Relay live briefing data to paired Samsung Galaxy Watch Ultra over Bluetooth / Wi-Fi
+        try {
+            val nodeClient = com.google.android.gms.wearable.Wearable.getNodeClient(this)
+            val msgClient = com.google.android.gms.wearable.Wearable.getMessageClient(this)
+            nodeClient.connectedNodes.addOnSuccessListener { nodes ->
+                val path = if (title.contains("Approval", ignoreCase = true) || message.contains("approve", ignoreCase = true)) {
+                    "/antigravity/approval"
+                } else {
+                    "/antigravity/task_update"
+                }
+                val payload = "$title: $message".toByteArray(Charsets.UTF_8)
+                for (node in nodes) {
+                    msgClient.sendMessage(node.id, path, payload)
+                }
+            }
+        } catch (_: Exception) {}
     }
 }
 
@@ -258,22 +295,30 @@ fun RemoteWebViewApp(
                 )
             }
 
-            // Top Pull-Down Trigger Zone
+            // Floating Action Drawer Toggle Pill (Non-blocking: leaves the top web navigation bar 100% interactive!)
             if (!isTopDrawerOpen) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(45.dp)
                         .align(Alignment.TopCenter)
-                        .pointerInput(Unit) {
-                            detectVerticalDragGestures { _, dragAmount ->
-                                if (dragAmount > 20) {
-                                    triggerHaptic(context, 15)
-                                    isTopDrawerOpen = true
-                                }
-                            }
-                        }
-                )
+                        .padding(top = 2.dp)
+                        .width(48.dp)
+                        .height(18.dp)
+                        .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f))
+                        .clickable {
+                            triggerHaptic(context, 20)
+                            isTopDrawerOpen = true
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                }
             }
 
             // Action Drawer with Swipe-Up gesture & Pull Pill
@@ -685,7 +730,21 @@ fun FullscreenRemoteWebView(
                     setSupportMultipleWindows(true)
                     javaScriptCanOpenWindowsAutomatically = true
                     safeBrowsingEnabled = false
+                    loadsImagesAutomatically = true
+                    blockNetworkImage = false
+                    blockNetworkLoads = false
+                    // Full Chrome desktop-class user agent for complete WebPush and ServiceWorker capability
                     userAgentString = "Mozilla/5.0 (Linux; Android 15; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
+                }
+
+                // Enable Full Chromium ServiceWorker Engine Stack
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    val swController = android.webkit.ServiceWorkerController.getInstance()
+                    swController.setServiceWorkerClient(object : android.webkit.ServiceWorkerClient() {
+                        override fun shouldInterceptRequest(request: android.webkit.WebResourceRequest?): android.webkit.WebResourceResponse? {
+                            return super.shouldInterceptRequest(request)
+                        }
+                    })
                 }
                 
                 addJavascriptInterface(
@@ -698,26 +757,168 @@ fun FullscreenRemoteWebView(
                 android.webkit.CookieManager.getInstance().setAcceptCookie(true)
                 android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 
+                val chromeNotificationBridge = """
+                    (function() {
+                        function triggerNativeAlert(title, message) {
+                            if (window.AndroidBridge && window.AndroidBridge.showNotification) {
+                                window.AndroidBridge.showNotification(title || 'Antigravity Notification', message || '');
+                            }
+                        }
+
+                        // 1. Force Google Chrome window.Notification Object BEFORE any scripts load
+                        window.Notification = function(title, options) {
+                            options = options || {};
+                            var body = options.body || options.message || '';
+                            triggerNativeAlert(title, body);
+                            
+                            this.title = title;
+                            this.body = body;
+                            this.close = function() {};
+                            this.addEventListener = function() {};
+                            this.removeEventListener = function() {};
+                            
+                            if (typeof options.onclick === 'function') {
+                                this.onclick = options.onclick;
+                            }
+                        };
+                        window.Notification.permission = 'granted';
+                        window.Notification.requestPermission = function(callback) {
+                            if (typeof callback === 'function') callback('granted');
+                            return Promise.resolve('granted');
+                        };
+
+                        // 2. ServiceWorker Registration Hook
+                        if (window.ServiceWorkerRegistration) {
+                            window.ServiceWorkerRegistration.prototype.showNotification = function(title, options) {
+                                options = options || {};
+                                triggerNativeAlert(title, options.body || options.message || '');
+                                return Promise.resolve();
+                            };
+                        }
+
+                        // 3. Hook navigator.serviceWorker
+                        if (navigator.serviceWorker) {
+                            try {
+                                navigator.serviceWorker.ready.then(function(reg) {
+                                    if (reg) {
+                                        reg.showNotification = function(title, options) {
+                                            options = options || {};
+                                            triggerNativeAlert(title, options.body || options.message || '');
+                                            return Promise.resolve();
+                                        };
+                                    }
+                                }).catch(function(){});
+                            } catch(e){}
+                        }
+
+                        // 4. Hook EventSource & WebSocket streams
+                        if (!window._agStreamHooked) {
+                            window._agStreamHooked = true;
+                            if (window.EventSource) {
+                                var OrigEventSource = window.EventSource;
+                                window.EventSource = function(url, config) {
+                                    var es = new OrigEventSource(url, config);
+                                    es.addEventListener('message', function(e) {
+                                        try {
+                                            var parsed = JSON.parse(e.data);
+                                            if (parsed.type === 'notification' || parsed.type === 'turn_complete' || parsed.type === 'attention') {
+                                                triggerNativeAlert(parsed.title || 'Antigravity Update', parsed.message || parsed.body || '');
+                                            }
+                                        } catch(err){}
+                                    });
+                                    es.addEventListener('notification', function(e) {
+                                        try {
+                                            var parsed = JSON.parse(e.data);
+                                            triggerNativeAlert(parsed.title || 'Antigravity Notification', parsed.message || parsed.body || '');
+                                        } catch(err){}
+                                    });
+                                    return es;
+                                };
+                                window.EventSource.prototype = OrigEventSource.prototype;
+                            }
+
+                            var OrigWebSocket = window.WebSocket;
+                            window.WebSocket = function(url, protocols) {
+                                var wsInstance = new OrigWebSocket(url, protocols);
+                                wsInstance.addEventListener('message', function(e) {
+                                    try {
+                                        var parsed = JSON.parse(e.data);
+                                        if (parsed.action === 'project_alert' || parsed.action === 'task_update' || parsed.action === 'notification' || parsed.type === 'notification') {
+                                            triggerNativeAlert(parsed.title || 'Antigravity Alert', parsed.message || parsed.body || '');
+                                        }
+                                    } catch(err){}
+                                });
+                                return wsInstance;
+                            };
+                            window.WebSocket.prototype = OrigWebSocket.prototype;
+                        }
+
+                        // 5. DOM Observers for Turn Completion, Blue Dot & Approvals
+                        if (!window._agAttentionListenerAttached) {
+                            window._agAttentionListenerAttached = true;
+                            var lastPrompt = '';
+                            var lastTurnText = '';
+
+                            setInterval(function() {
+                                try {
+                                    // A. Blue Dot indicator
+                                    var blueDots = document.querySelectorAll('.unread-dot, .blue-dot, .notification-dot, [data-unread="true"], .has-unread, .unread-indicator, .status-dot.active, .dot-blue');
+                                    if (blueDots.length > 0) {
+                                        var activeDot = Array.from(blueDots).find(function(d) { return d.offsetParent !== null; });
+                                        if (activeDot) {
+                                            var dotLabel = (activeDot.getAttribute('aria-label') || activeDot.getAttribute('title') || 'New unread message from Antigravity Agent').slice(0, 100);
+                                            if (dotLabel !== lastPrompt) {
+                                                lastPrompt = dotLabel;
+                                                triggerNativeAlert('🔵 Antigravity Agent Replied', dotLabel);
+                                            }
+                                        }
+                                    }
+
+                                    // B. Assistant message turn finish
+                                    var assistantMessages = document.querySelectorAll('.assistant-message, .agent-response, .model-response, [data-role="assistant"], [data-role="model"], .turn-complete');
+                                    if (assistantMessages.length > 0) {
+                                        var latestAssistant = assistantMessages[assistantMessages.length - 1];
+                                        var fullTxt = (latestAssistant.innerText || latestAssistant.textContent || '').trim();
+                                        if (fullTxt.length > 10 && fullTxt !== lastTurnText) {
+                                            lastTurnText = fullTxt;
+                                            var snippet = fullTxt.slice(0, 130).replace(/\n+/g, ' ');
+                                            triggerNativeAlert('⚡ Agent Finished Turn', snippet);
+                                        }
+                                    }
+
+                                    // C. Approval buttons
+                                    var buttons = Array.from(document.querySelectorAll('button, .btn, [role="button"]'));
+                                    var approvalBtn = buttons.find(function(b) {
+                                        var t = (b.innerText || b.textContent || '').trim().toLowerCase();
+                                        return t === 'proceed' || t === 'allow' || t === 'approve' || t === 'run command' || t === 'accept';
+                                    });
+
+                                    if (approvalBtn && approvalBtn.offsetParent !== null) {
+                                        var promptText = 'Agent requires approval to proceed with execution.';
+                                        var parentModal = approvalBtn.closest('.modal, .dialog, [role="dialog"], .action-box, .turn-bubble, .card');
+                                        if (parentModal) {
+                                            promptText = (parentModal.innerText || parentModal.textContent || '').trim().slice(0, 140);
+                                        }
+                                        if (promptText !== lastPrompt) {
+                                            lastPrompt = promptText;
+                                            triggerNativeAlert('⚠️ Attention Required', promptText);
+                                        }
+                                    }
+                                } catch(err){}
+                            }, 1000);
+                        }
+                    })();
+                """.trimIndent()
+
                 webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                        super.onPageStarted(view, url, favicon)
+                        view?.evaluateJavascript(chromeNotificationBridge, null)
+                    }
+
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
-                        val webNotificationPolyfill = """
-                            (function() {
-                                window.Notification = function(title, options) {
-                                    options = options || {};
-                                    var body = options.body || '';
-                                    if (window.AndroidBridge && window.AndroidBridge.showNotification) {
-                                        window.AndroidBridge.showNotification(title, body);
-                                    }
-                                };
-                                window.Notification.permission = 'granted';
-                                window.Notification.requestPermission = function(cb) {
-                                    if (cb) cb('granted');
-                                    return Promise.resolve('granted');
-                                };
-                            })();
-                        """.trimIndent()
-                        view?.evaluateJavascript(webNotificationPolyfill, null)
+                        view?.evaluateJavascript(chromeNotificationBridge, null)
                     }
                 }
 

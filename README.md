@@ -33,7 +33,8 @@ Monitor AI agent workflows, review diffs, approve tool executions, and track rea
 - 🔒 **Biometric Security & Hardware Keystore**: Protect your agent remote controls and approvals behind hardware-backed Android `BiometricPrompt` (Fingerprint & Face Unlock) with cryptographic token storage.
 - ⚡ **Real-Time Live Agent Streaming**: Track multi-turn subagent execution, terminal commands, workspace edits, and background tasks in real time over low-latency WebSockets.
 - 📊 **Model Quotas & Token Telemetry**: Dedicated dashboard tracking daily/monthly LLM quotas, context window consumption, cache hits, and rate limits across models.
-- 🔔 **Heads-Up Actionable Notifications**: Receive high-priority notifications when an agent requires approval, tool authorization, or completes a critical pipeline task.
+- ⌚ **Wear OS Smartwatch Companion**: Dedicated lightweight Wear OS app for round watch dials (Galaxy Watch Ultra / Pixel Watch). Receive instant haptic vibrations, live audio briefings via on-device TextToSpeech, and 1-tap approval triggers directly on your wrist!
+- 🔔 **Full Chromium WebPush & Lockscreen Sync**: Multi-stream EventSource, WebSocket, ServiceWorker, and Blue Dot unread indicators with zero-redaction lockscreen notifications.
 - 📱 **Android 15 Ready (16KB Memory Page Support)**: Built and verified with 16KB ELF page size alignment for next-gen Android 15 performance and battery efficiency.
 - 🎨 **Modern Material You & Jetpack Compose**: Full dynamic theme support, edge-to-edge UI, dark mode, smooth gesture animations, and haptic feedback.
 

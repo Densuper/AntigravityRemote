@@ -96,4 +96,7 @@ dependencies {
 
   // Biometrics & Security
   implementation("androidx.biometric:biometric:1.2.0-alpha05")
+
+  // Wearable Data Layer (Phone-to-Watch Bluetooth & Wi-Fi Sync)
+  implementation("com.google.android.gms:play-services-wearable:18.2.0")
 }

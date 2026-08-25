@@ -31,3 +31,4 @@ plugins {
 
 rootProject.name = "AntigravityRemote"
 include(":app")
+include(":wear")
