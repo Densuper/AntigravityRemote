@@ -6,8 +6,8 @@
 
 **The Next-Generation Mobile Companion & Telemetry Console for Antigravity AI**
 
-[![GitHub Release](https://img.shields.io/github/v/release/DenverColaco/AntigravityRemote?style=for-the-badge&color=00D2FF&label=Latest%20Release)](https://github.com/DenverColaco/AntigravityRemote/releases/latest)
-[![Download APK](https://img.shields.io/badge/Download-APK%20v1.0.0-38EF7D?style=for-the-badge&logo=android&logoColor=white)](https://github.com/DenverColaco/AntigravityRemote/releases/latest/download/AntigravityRemote-v1.0.0.apk)
+[![GitHub Release](https://img.shields.io/github/v/release/Densuper/AntigravityRemote?style=for-the-badge&color=00D2FF&label=Latest%20Release)](https://github.com/Densuper/AntigravityRemote/releases/latest)
+[![Download APK](https://img.shields.io/badge/Download-APK%20v1.0.0-38EF7D?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Densuper/AntigravityRemote/releases/download/v1.0.0/AntigravityRemote-v1.0.0.apk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-FEE140?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 <br/>
@@ -19,7 +19,7 @@
 
 ---
 
-### 📲 [⚡ **Download Latest Release (v1.0.0 APK)** ⚡](https://github.com/DenverColaco/AntigravityRemote/releases/latest)
+### 📲 [⚡ **Download Latest Release (v1.0.0 APK)** ⚡](https://github.com/Densuper/AntigravityRemote/releases/tag/v1.0.0)
 
 Monitor AI agent workflows, review diffs, approve tool executions, and track real-time LLM token quotas directly from your Android phone with zero latency.
 
@@ -81,12 +81,12 @@ graph TD
 ### 1. Running the Android Application
 
 #### Option A: Download Pre-built APK
-Download the latest `app-debug.apk` or `app-release.apk` from the **[GitHub Releases](https://github.com/DenverColaco/AntigravityRemote/releases)** or GitHub Actions Artifacts tab.
+Download the latest `AntigravityRemote-v1.0.0.apk` from the **[GitHub Releases](https://github.com/Densuper/AntigravityRemote/releases)** tab.
 
 #### Option B: Build from Source
 ```bash
 # Clone the repository
-git clone https://github.com/DenverColaco/AntigravityRemote.git
+git clone https://github.com/Densuper/AntigravityRemote.git
 cd AntigravityRemote
 
 # Build debug APK using Gradle wrapper
