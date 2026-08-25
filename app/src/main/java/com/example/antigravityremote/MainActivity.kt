@@ -70,11 +70,27 @@ import java.util.concurrent.Executors
 
 class MainActivity : FragmentActivity() {
     private val CHANNEL_PROJECT = "antigravity_project_alerts"
+    private var activityTts: android.speech.tts.TextToSpeech? = null
+
+    private val speechReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val text = intent?.getStringExtra("text") ?: return
+            speakText(text)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         createNotificationChannels()
+        initTts()
+
+        val filter = android.content.IntentFilter("com.example.antigravityremote.SPEAK")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(speechReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(speechReceiver, filter)
+        }
 
         // Google Android 13+ Runtime Notification Permission Request
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -96,6 +112,29 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    private fun initTts() {
+        activityTts = android.speech.tts.TextToSpeech(this) { status ->
+            if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                activityTts?.language = Locale.UK
+                activityTts?.setSpeechRate(1.0f)
+                activityTts?.setPitch(0.95f)
+            }
+        }
+    }
+
+    fun speakText(text: String) {
+        activityTts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "ag_speech_${System.currentTimeMillis()}")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            unregisterReceiver(speechReceiver)
+        } catch (_: Exception) {}
+        activityTts?.stop()
+        activityTts?.shutdown()
     }
 
     private fun createNotificationChannels() {
@@ -220,11 +259,18 @@ fun isLocalOrTrustedUrl(rawUrl: String): Boolean {
 }
 
 class AndroidNativeBridge(
-    private val onNotify: (String, String) -> Unit
+    private val context: Context,
+    private val onNotify: (String, String) -> Unit,
+    private val onSpeak: (String) -> Unit
 ) {
     @JavascriptInterface
     fun showNotification(title: String, message: String) {
         onNotify(title, message)
+    }
+
+    @JavascriptInterface
+    fun playTts(text: String) {
+        onSpeak(text)
     }
 }
 
@@ -278,217 +324,259 @@ fun RemoteWebViewApp(
             }
         }
 
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            FullscreenRemoteWebView(
-                url = remoteUrl!!,
-                onShowNotification = { title, msg -> onShowProjectAlert(title, msg) },
-                onWebViewCreated = { webViewInstance = it }
-            )
-
-            // Tap outside scrim to close Action Drawer
-            if (isTopDrawerOpen) {
-                Box(
+            // Dedicated Top HUD Bar (Native status row above the web app, 0 overlap)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .clickable {
+                        triggerHaptic(context, 15)
+                        isTopDrawerOpen = !isTopDrawerOpen
+                    },
+                color = Color(0xFF0D1117),
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF30363D))
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .pointerInput(Unit) {
-                            detectTapGestures {
-                                triggerHaptic(context, 15)
-                                isTopDrawerOpen = false
-                            }
-                        }
-                )
-            }
-
-            // Floating Action Drawer Toggle Pill (Non-blocking: leaves the top web navigation bar 100% interactive!)
-            if (!isTopDrawerOpen) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 2.dp)
-                        .width(48.dp)
-                        .height(18.dp)
-                        .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f))
-                        .clickable {
-                            triggerHaptic(context, 20)
-                            isTopDrawerOpen = true
-                        },
-                    contentAlignment = Alignment.Center
+                        .padding(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .width(24.dp)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.onSurfaceVariant)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF3FB950))
+                        )
+                        Text(
+                            text = "⚡ J.A.R.V.I.S. HUD",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF58A6FF)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Quota: 88%",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF3FB950)
+                        )
+                        Text(
+                            text = if (isTopDrawerOpen) "▲ Close" else "▼ Details",
+                            fontSize = 10.sp,
+                            color = Color(0xFF8B949E)
+                        )
+                    }
                 }
             }
 
-            // Action Drawer with Swipe-Up gesture & Pull Pill
-            AnimatedVisibility(
-                visible = isTopDrawerOpen,
-                enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
-                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures { _, dragAmount ->
-                            if (dragAmount < -15) { // Swipe UP gesture closes drawer!
-                                triggerHaptic(context, 15)
-                                isTopDrawerOpen = false
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                FullscreenRemoteWebView(
+                    url = remoteUrl!!,
+                    onShowNotification = { title, msg -> onShowProjectAlert(title, msg) },
+                    onWebViewCreated = { webViewInstance = it }
+                )
+
+                // Tap outside scrim to close Action Drawer
+                if (isTopDrawerOpen) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .pointerInput(Unit) {
+                                detectTapGestures {
+                                    triggerHaptic(context, 15)
+                                    isTopDrawerOpen = false
+                                }
+                            }
+                    )
+                }
+
+                // Action Drawer with Cyber Frosted Glass & Visual Circular Gauges
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isTopDrawerOpen,
+                    enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                    exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures { _, dragAmount ->
+                                if (dragAmount < -15) { // Swipe UP gesture closes drawer!
+                                    triggerHaptic(context, 15)
+                                    isTopDrawerOpen = false
+                                }
                             }
                         }
-                    }
-            ) {
+                ) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-                    shadowElevation = 8.dp
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF0D1117).copy(alpha = 0.94f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF58A6FF).copy(alpha = 0.35f)),
+                    shadowElevation = 16.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(18.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // Tap or Drag Pill to Close
                         Box(
                             modifier = Modifier
-                                .width(40.dp)
-                                .height(6.dp)
+                                .width(44.dp)
+                                .height(5.dp)
                                 .clip(RoundedCornerShape(3.dp))
-                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                .background(Color(0xFF8B949E).copy(alpha = 0.5f))
                                 .clickable {
                                     triggerHaptic(context, 15)
                                     isTopDrawerOpen = false
                                 }
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
+                        // Header Status Pill
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                .padding(10.dp),
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF161B22))
+                                .border(1.dp, Color(0xFF30363D), RoundedCornerShape(12.dp))
+                                .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text("Antigravity Workspace", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Text("Active Remote Session", fontSize = 11.sp, color = Color(0xFF3FB950))
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF3FB950))
+                                )
+                                Column {
+                                    Text("Antigravity 2.0 Core", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+                                    Text("Neural Stream & Mobile TTS Active", fontSize = 11.sp, color = Color(0xFF3FB950))
+                                }
                             }
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF3FB950))
-                            )
+                            Text("ONLINE", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF3FB950))
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                        // Antigravity Model Usage & Rate Limits Telemetry Card with Dynamic Live Reset Countdown
+                        // Visual Telemetry Circular Gauges & Quota Metrics
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                                .padding(10.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF161B22).copy(alpha = 0.8f))
+                                .border(1.dp, Color(0xFF30363D), RoundedCornerShape(14.dp))
+                                .padding(14.dp)
                         ) {
+                            Text("📊 MODEL QUOTAS & TELEMETRY", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF58A6FF))
+                            Spacer(modifier = Modifier.height(12.dp))
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("⚡ Model Usage & Quotas", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                Text("Claude 3.7 / Gemini 2.5", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
+                                // 5-Hour Gauge Card
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF0D1117))
+                                        .padding(10.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(54.dp)) {
+                                        CircularProgressIndicator(
+                                            progress = { 0.88f },
+                                            modifier = Modifier.fillMaxSize(),
+                                            color = Color(0xFF58A6FF),
+                                            trackColor = Color(0xFF21262D),
+                                            strokeWidth = 5.dp
+                                        )
+                                        Text("88%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("5-Hour Limit", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8B949E))
+                                    Text("Reset: 3h 15m", fontSize = 9.sp, color = Color(0xFF58A6FF))
+                                }
 
-                            // 5-Hour Rolling Limit with exact Reset Countdown & Clock Time
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("⏳ 5-Hour Rolling Limit", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                Text("88% Remaining", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF58A6FF))
-                            }
-                            Spacer(modifier = Modifier.height(3.dp))
-                            LinearProgressIndicator(
-                                progress = { 0.88f },
-                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                color = Color(0xFF58A6FF),
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Next Reset: in 3 hrs 15 mins", fontSize = 9.5.sp, color = Color(0xFF58A6FF))
-                                Text("Exact Time: 17:45 BST", fontSize = 9.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Weekly Quota Allowance with exact Day & Time
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("📅 Weekly Quota Allowance", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                Text("94% Remaining", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3FB950))
-                            }
-                            Spacer(modifier = Modifier.height(3.dp))
-                            LinearProgressIndicator(
-                                progress = { 0.94f },
-                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                color = Color(0xFF3FB950),
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Next Reset: in 5 days 18 hrs", fontSize = 9.5.sp, color = Color(0xFF3FB950))
-                                Text("Monday 00:00 BST", fontSize = 9.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                // Weekly Allowance Gauge Card
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF0D1117))
+                                        .padding(10.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(54.dp)) {
+                                        CircularProgressIndicator(
+                                            progress = { 0.94f },
+                                            modifier = Modifier.fillMaxSize(),
+                                            color = Color(0xFF3FB950),
+                                            trackColor = Color(0xFF21262D),
+                                            strokeWidth = 5.dp
+                                        )
+                                        Text("94%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("Weekly Quota", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8B949E))
+                                    Text("Reset: 5d 18h", fontSize = 9.sp, color = Color(0xFF3FB950))
+                                }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
+                        // Quick Control Action Buttons
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            FilledTonalButton(
+                            Button(
                                 onClick = {
                                     triggerHaptic(context, 20)
                                     webViewInstance?.reload()
                                     isTopDrawerOpen = false
                                 },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF21262D)),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("🔄 Reload", fontSize = 12.sp)
+                                Text("🔄 Resync", fontSize = 12.sp, color = Color.White)
                             }
 
-                            FilledTonalButton(
+                            Button(
                                 onClick = {
                                     triggerHaptic(context, 25)
                                     isTopDrawerOpen = false
-                                    activity.finishAffinity() // Closes and exits the app completely
+                                    activity.finishAffinity()
                                 },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF21262D)),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("🚪 Exit App", fontSize = 12.sp)
+                                Text("🚪 Exit", fontSize = 12.sp, color = Color.White)
                             }
                         }
 
@@ -501,37 +589,37 @@ fun RemoteWebViewApp(
                             OutlinedButton(
                                 onClick = {
                                     triggerHaptic(context, 40)
-                                    // Lock workspace: requires biometric unlock on next open
                                     isBiometricAuthenticated = false
                                     isTopDrawerOpen = false
                                     activity.moveTaskToBack(true)
                                 },
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF30363D)),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("🔒 Lock Workspace", fontSize = 11.sp)
+                                Text("🔒 Lock App", fontSize = 11.sp, color = Color(0xFF8B949E))
                             }
 
                             Button(
                                 onClick = {
                                     triggerHaptic(context, 45)
-                                    // Disconnect & Forget: Purges saved token and returns to QR Scanner
                                     prefs.edit().remove("saved_remote_url").apply()
                                     isTopDrawerOpen = false
                                     remoteUrl = null
                                     isBiometricAuthenticated = false
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDA3633)),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("❌ Disconnect", fontSize = 11.sp)
+                                Text("❌ Disconnect", fontSize = 11.sp, color = Color.White)
                             }
                         }
                     }
                 }
-            }
-        }
-    } else {
-        ScannerScreen(
+            } // Close AnimatedVisibility
+        } // Close Box
+    } // Close Column
+} else {
+    ScannerScreen(
             scanError = scanError,
             onUrlScanned = { rawUrl ->
                 val finalUrl = if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) rawUrl else "http://$rawUrl"
@@ -717,6 +805,21 @@ fun FullscreenRemoteWebView(
         filePathCallback = null
     }
 
+    val context = LocalContext.current
+    var ttsEngine by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    DisposableEffect(Unit) {
+        val tts = android.speech.tts.TextToSpeech(context) { status ->
+            if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                ttsEngine?.language = Locale.UK
+            }
+        }
+        ttsEngine = tts
+        onDispose {
+            tts.stop()
+            tts.shutdown()
+        }
+    }
+
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
@@ -759,7 +862,11 @@ fun FullscreenRemoteWebView(
                 
                 addJavascriptInterface(
                     AndroidNativeBridge(
-                        onNotify = onShowNotification
+                        context = ctx,
+                        onNotify = onShowNotification,
+                        onSpeak = { text ->
+                            ttsEngine?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "ag_tts_${System.currentTimeMillis()}")
+                        }
                     ),
                     "AndroidBridge"
                 )
@@ -965,11 +1072,7 @@ fun FullscreenRemoteWebView(
                 onWebViewCreated(this)
             }
         },
-        update = { webView ->
-            if (webView.url != url) {
-                webView.loadUrl(url)
-            }
-        },
+        update = { /* Keep WebView instance warm in memory across lifecycle switches */ },
         modifier = Modifier.fillMaxSize()
     )
 }
