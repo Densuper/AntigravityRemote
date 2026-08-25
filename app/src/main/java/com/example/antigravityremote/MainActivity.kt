@@ -125,21 +125,31 @@ class MainActivity : FragmentActivity() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Public version displayed when device is locked (guarantees text is NEVER redacted)
+        val agentPerson = androidx.core.app.Person.Builder()
+            .setName("Antigravity AI")
+            .setBot(true)
+            .setImportant(true)
+            .build()
+
+        val messagingStyle = NotificationCompat.MessagingStyle(agentPerson)
+            .setConversationTitle(title)
+            .addMessage(message, System.currentTimeMillis(), agentPerson)
+
+        // Public version displayed on Lockscreen showing sender and full message
         val publicNotification = NotificationCompat.Builder(this, CHANNEL_PROJECT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title)
+            .setContentTitle("Antigravity AI: $title")
             .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setStyle(messagingStyle)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
 
-        // Chrome-style Heads-Up Floating Banner & Full Lockscreen Notification
+        // Full Messaging Notification for Notification Shade & Lockscreen
         val builder = NotificationCompat.Builder(this, CHANNEL_PROJECT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title)
+            .setContentTitle("Antigravity AI: $title")
             .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setStyle(messagingStyle)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
