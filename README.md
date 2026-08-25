@@ -6,8 +6,8 @@
 
 **The Next-Generation Mobile Companion & Telemetry Console for Antigravity AI**
 
-[![GitHub Release](https://img.shields.io/github/v/release/Densuper/AntigravityRemote?style=for-the-badge&color=00D2FF&label=Latest%20Release)](https://github.com/Densuper/AntigravityRemote/releases/latest)
-[![Download APK](https://img.shields.io/badge/Download-APK%20v1.1.0-38EF7D?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Densuper/AntigravityRemote/releases/latest/download/app-debug.apk)
+[![GitHub Release](https://img.shields.io/github/v/release/Densuper/AntigravityRemote?style=for-the-badge&color=00D2FF&label=Latest%20Release)](https://github.com/Densuper/AntigravityRemote/releases/tag/v1.1.0)
+[![Download APK](https://img.shields.io/badge/Download-APK%20v1.1.0-38EF7D?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Densuper/AntigravityRemote/releases/download/v1.1.0/AntigravityRemote-v1.1.0.apk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-FEE140?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 <br/>
@@ -19,7 +19,7 @@
 
 ---
 
-### 📲 [⚡ **Download Latest Release (v1.1.0 APK)** ⚡](https://github.com/Densuper/AntigravityRemote/releases/latest)
+### 📲 [⚡ **Download Latest Release (v1.1.0 APK)** ⚡](https://github.com/Densuper/AntigravityRemote/releases/tag/v1.1.0)
 
 Monitor AI agent workflows, review diffs, approve tool executions, and track real-time LLM token quotas directly from your Android phone with zero latency.
 
