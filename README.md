@@ -82,7 +82,7 @@ graph TD
 ### 1. Running the Android Application
 
 #### Option A: Download Pre-built APK
-Download the latest `AntigravityRemote-v1.0.0.apk` from the **[GitHub Releases](https://github.com/Densuper/AntigravityRemote/releases)** tab.
+Download the latest `AntigravityRemote-v1.1.0.apk` from the **[GitHub Releases](https://github.com/Densuper/AntigravityRemote/releases)** tab.
 
 #### Option B: Build from Source
 ```bash
@@ -105,8 +105,71 @@ The resulting APK will be located at:
 1. Open your Antigravity IDE workspace or start the remote server from the Antigravity companion interface.
 2. Launch **Antigravity Remote** on your Android device.
 3. Tap **Scan QR Code** and point your camera at the screen QR code.
-4. Verify with your fingerprint / face ID when prompted.
-5. Your live session dashboard, agent execution queue, and quota indicators are now active!
+4. Verify with your fingerprint / biometric prompt if configured.
+5. Your live session workspace and the **`⚡ AGENT HUD`** console are now active!
+
+---
+
+## 🎙️ Build Your Own Autonomous Voice Agent (Plug & Play)
+
+**Antigravity Remote** includes a built-in, zero-dependency **Native Voice Assistant Bridge**. 
+
+This feature allows any developer to connect their own local AI coding agent (e.g. Claude, GPT, custom personas) so it can autonomously speak spoken updates, turn summaries, and build notifications directly through their Android phone's hardware speaker or connected earbuds.
+
+### 🛡️ 100% Private — Zero API Keys or Cloud Voice Fees
+* **On-Device Synthesis**: Relies entirely on Android's high-fidelity native `TextToSpeech` engine (English UK / US / multi-language).
+* **Zero Secret Exposure**: No API keys, cloud TTS tokens, or sensitive prompt files are needed in the app.
+* **Open Intent Architecture**: Any script on your PC/Mac can broadcast spoken messages to your phone over local ADB or WebSocket.
+
+---
+
+### 🚀 Quickstart: Triggering Voice Updates from Any PC Script
+
+You can send spoken notifications to your phone in two simple ways:
+
+#### Method A: Via Android ADB (USB or Wi-Fi Debugging)
+Send a broadcast intent from PowerShell, Bash, or Python to trigger instant speech on your phone:
+
+```powershell
+# Windows PowerShell
+adb shell am broadcast -a com.example.antigravityremote.SPEAK -p com.example.antigravityremote --es text 'Task complete. All tests have passed.'
+```
+
+```bash
+# macOS / Linux Bash
+adb shell am broadcast -a com.example.antigravityremote.SPEAK -p com.example.antigravityremote --es text "Agent finished execution. Ready for review."
+```
+
+```python
+# Python 3
+import subprocess
+
+def speak_to_phone(message: str):
+    subprocess.run([
+        "adb", "shell", "am", "broadcast",
+        "-a", "com.example.antigravityremote.SPEAK",
+        "-p", "com.example.antigravityremote",
+        "--es", "text", message
+    ])
+
+speak_to_phone("Build v1.1.0 compiled successfully.")
+```
+
+#### Method B: Via WebSocket / Web Dashboard
+If you are running the companion web dashboard, simply emit a JSON payload:
+```json
+{
+  "action": "play_tts",
+  "text": "Your custom agent briefing message here"
+}
+```
+
+---
+
+### 🤖 Giving Your Agent Its Own Personality
+You are free to name your AI assistant whatever you like! Simply instruct your AI agent in your system prompt or custom script to execute the ADB command at the conclusion of each turn:
+
+> *"After completing any coding task, execute `adb shell am broadcast ... --es text '<Summary>'` so I hear your briefing on my phone."*
 
 ---
 
